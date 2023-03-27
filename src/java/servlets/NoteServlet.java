@@ -6,11 +6,16 @@
 package servlets;
 
 import java.io.IOException;
-import java.io.PrintWriter;
+import java.util.List;
+import java.util.logging.Level;
+import java.util.logging.Logger;
 import javax.servlet.ServletException;
 import javax.servlet.http.HttpServlet;
 import javax.servlet.http.HttpServletRequest;
 import javax.servlet.http.HttpServletResponse;
+import javax.servlet.http.HttpSession;
+import models.Note;
+import services.NoteService;
 
 /**
  *
@@ -18,69 +23,77 @@ import javax.servlet.http.HttpServletResponse;
  */
 public class NoteServlet extends HttpServlet {
 
-    /**
-     * Processes requests for both HTTP <code>GET</code> and <code>POST</code>
-     * methods.
-     *
-     * @param request servlet request
-     * @param response servlet response
-     * @throws ServletException if a servlet-specific error occurs
-     * @throws IOException if an I/O error occurs
-     */
-    protected void processRequest(HttpServletRequest request, HttpServletResponse response)
-            throws ServletException, IOException {
-        response.setContentType("text/html;charset=UTF-8");
-        try (PrintWriter out = response.getWriter()) {
-            /* TODO output your page here. You may use following sample code. */
-            out.println("<!DOCTYPE html>");
-            out.println("<html>");
-            out.println("<head>");
-            out.println("<title>Servlet NoteServlet</title>");            
-            out.println("</head>");
-            out.println("<body>");
-            out.println("<h1>Servlet NoteServlet at " + request.getContextPath() + "</h1>");
-            out.println("</body>");
-            out.println("</html>");
-        }
-    }
-
-    // <editor-fold defaultstate="collapsed" desc="HttpServlet methods. Click on the + sign on the left to edit the code.">
-    /**
-     * Handles the HTTP <code>GET</code> method.
-     *
-     * @param request servlet request
-     * @param response servlet response
-     * @throws ServletException if a servlet-specific error occurs
-     * @throws IOException if an I/O error occurs
-     */
     @Override
     protected void doGet(HttpServletRequest request, HttpServletResponse response)
             throws ServletException, IOException {
-        processRequest(request, response);
+
+        NoteService ns = new NoteService();
+
+        try {
+            HttpSession session = request.getSession();
+            String email = (String) session.getAttribute("email");
+            List<Note> notes = ns.getAll(email);
+            request.setAttribute("notes", notes);
+        } catch (Exception ex) {
+            Logger.getLogger(NoteServlet.class.getName()).log(Level.SEVERE, null, ex);
+            request.setAttribute("message", "error");
+        }
+
+        String action = request.getParameter("action");
+        if (action != null && action.equals("view")) {
+            try {
+                int id = Integer.parseInt(request.getParameter("noteId"));
+                Note note = ns.get(id);
+                request.setAttribute("selectedNote", note);
+            } catch (Exception ex) {
+                Logger.getLogger(NoteServlet.class.getName()).log(Level.SEVERE, null, ex);
+            }
+        }
+
+        getServletContext().getRequestDispatcher("/WEB-INF/notes.jsp").forward(request, response);
     }
 
-    /**
-     * Handles the HTTP <code>POST</code> method.
-     *
-     * @param request servlet request
-     * @param response servlet response
-     * @throws ServletException if a servlet-specific error occurs
-     * @throws IOException if an I/O error occurs
-     */
     @Override
     protected void doPost(HttpServletRequest request, HttpServletResponse response)
             throws ServletException, IOException {
-        processRequest(request, response);
-    }
 
-    /**
-     * Returns a short description of the servlet.
-     *
-     * @return a String containing servlet description
-     */
-    @Override
-    public String getServletInfo() {
-        return "Short description";
-    }// </editor-fold>
+        HttpSession session = request.getSession();
+        String email = (String) session.getAttribute("email");
+
+        NoteService ns = new NoteService();
+
+        // action must be one of: create, update, delete
+        String action = request.getParameter("action");
+        String noteId = request.getParameter("noteId");
+        String title = request.getParameter("title");
+        String contents = request.getParameter("contents");
+
+        try {
+            switch (action) {
+                case "create":
+                    ns.insert(title, contents, email);
+                    break;
+                case "update":
+                    ns.update(Integer.parseInt(noteId), title, contents, email);
+                    break;
+                case "delete":
+                    ns.delete(Integer.parseInt(noteId));
+            }
+            request.setAttribute("message", action);
+        } catch (Exception ex) {
+            Logger.getLogger(NoteServlet.class.getName()).log(Level.SEVERE, null, ex);
+            request.setAttribute("message", "error");
+        }
+
+        try {
+            List<Note> notes = ns.getAll(email);
+            request.setAttribute("notes", notes);
+        } catch (Exception ex) {
+            Logger.getLogger(NoteServlet.class.getName()).log(Level.SEVERE, null, ex);
+            request.setAttribute("message", "error");
+        }
+
+        getServletContext().getRequestDispatcher("/WEB-INF/notes.jsp").forward(request, response);
+    }
 
 }
